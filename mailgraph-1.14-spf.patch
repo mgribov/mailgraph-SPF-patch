@@ -1,0 +1,114 @@
+Only in mailgraph-1.14: CHANGES
+Only in mailgraph-1.14: COPYING
+Only in mailgraph-1.14: README
+Only in mailgraph-1.14: mailgraph-init
+diff -crB mailgraph-1.14/mailgraph.cgi mailgraph-spf-1.14/mailgraph.cgi
+*** mailgraph-1.14/mailgraph.cgi	Wed Aug 29 05:06:01 2007
+--- mailgraph-spf-1.14/mailgraph.cgi	Thu May 27 14:36:48 2010
+***************
+*** 148,153 ****
+--- 148,165 ----
+  		'GPRINT:rrejected:AVERAGE:avg\: %5.2lf msgs/min',
+  		'GPRINT:rmrejected:MAX:max\: %4.0lf msgs/min\l',
+  
++         "DEF:spf=$rrd_virus:spf:AVERAGE",
++         "DEF:mspf=$rrd_virus:spf:MAX",
++         "CDEF:rspf=spf,60,*",
++         "CDEF:dspf=spf,UN,0,spf,IF,$step,*",
++         "CDEF:sspf=PREV,UN,dspf,PREV,IF,dspf,+",
++         "CDEF:rmspf=mspf,60,*",
++         "STACK:rspf#$color{spf}:SPF Rejects    ",
++         'GPRINT:sspf:MAX:total\: %8.0lf msgs',
++         'GPRINT:rspf:AVERAGE:avg\: %5.2lf msgs/min',
++         'GPRINT:rmspf:MAX:max\: %4.0lf msgs/min\l',
++ 
++ 
+  	);
+  }
+  
+Only in mailgraph-1.14: mailgraph.css
+diff -crB mailgraph-1.14/mailgraph.pl mailgraph-spf-1.14/mailgraph.pl
+*** mailgraph-1.14/mailgraph.pl	Wed Aug 29 05:06:01 2007
+--- mailgraph-spf-1.14/mailgraph.pl	Thu May 27 14:42:04 2010
+***************
+*** 381,387 ****
+  my $rrd_virus = "mailgraph_virus.rrd";
+  my $year;
+  my $this_minute;
+! my %sum = ( sent => 0, received => 0, bounced => 0, rejected => 0, virus => 0, spam => 0 );
+  my $rrd_inited=0;
+  
+  my %opt = ();
+--- 381,387 ----
+  my $rrd_virus = "mailgraph_virus.rrd";
+  my $year;
+  my $this_minute;
+! my %sum = ( sent => 0, received => 0, bounced => 0, rejected => 0, virus => 0, spam => 0, spf => 0 );
+  my $rrd_inited=0;
+  
+  my %opt = ();
+***************
+*** 548,553 ****
+--- 548,554 ----
+  		RRDs::create($rrd_virus, '--start', $m, '--step', $rrdstep,
+  				'DS:virus:ABSOLUTE:'.($rrdstep*2).':0:U',
+  				'DS:spam:ABSOLUTE:'.($rrdstep*2).':0:U',
++                 'DS:spf:ABSOLUTE:'.($rrdstep*2).':0:U',
+  				"RRA:AVERAGE:0.5:$day_steps:$realrows",   # day
+  				"RRA:AVERAGE:0.5:$week_steps:$realrows",  # week
+  				"RRA:AVERAGE:0.5:$month_steps:$realrows", # month
+***************
+*** 590,595 ****
+--- 591,601 ----
+  				event($time, 'bounced');
+  			}
+  		}
++         elsif ($prog eq 'policy-spf') {
++             if ($text =~ /action=REJECT/) {
++                 event($time, 'spf');
++             }
++         }
+  		elsif($prog eq 'local') {
+  			if($text =~ /\bstatus=bounced\b/) {
+  				event($time, 'bounced');
+***************
+*** 870,883 ****
+  	return 1 if $m == $this_minute;
+  	return 0 if $m < $this_minute;
+  
+! 	print "update $this_minute:$sum{sent}:$sum{received}:$sum{bounced}:$sum{rejected}:$sum{virus}:$sum{spam}\n" if $opt{verbose};
+  	RRDs::update $rrd, "$this_minute:$sum{sent}:$sum{received}:$sum{bounced}:$sum{rejected}" unless $opt{'only-virus-rrd'};
+! 	RRDs::update $rrd_virus, "$this_minute:$sum{virus}:$sum{spam}" unless $opt{'only-mail-rrd'};
+  	if($m > $this_minute+$rrdstep) {
+  		for(my $sm=$this_minute+$rrdstep;$sm<$m;$sm+=$rrdstep) {
+! 			print "update $sm:0:0:0:0:0:0 (SKIP)\n" if $opt{verbose};
+  			RRDs::update $rrd, "$sm:0:0:0:0" unless $opt{'only-virus-rrd'};
+! 			RRDs::update $rrd_virus, "$sm:0:0" unless $opt{'only-mail-rrd'};
+  		}
+  	}
+  	$this_minute = $m;
+--- 876,889 ----
+  	return 1 if $m == $this_minute;
+  	return 0 if $m < $this_minute;
+  
+! 	print "update $this_minute:$sum{sent}:$sum{received}:$sum{bounced}:$sum{rejected}:$sum{virus}:$sum{spam}:$sum{spf}\n" if $opt{verbose};
+  	RRDs::update $rrd, "$this_minute:$sum{sent}:$sum{received}:$sum{bounced}:$sum{rejected}" unless $opt{'only-virus-rrd'};
+! 	RRDs::update $rrd_virus, "$this_minute:$sum{virus}:$sum{spam}:$sum{spf}" unless $opt{'only-mail-rrd'};
+  	if($m > $this_minute+$rrdstep) {
+  		for(my $sm=$this_minute+$rrdstep;$sm<$m;$sm+=$rrdstep) {
+! 			print "update $sm:0:0:0:0:0:0:0 (SKIP)\n" if $opt{verbose};
+  			RRDs::update $rrd, "$sm:0:0:0:0" unless $opt{'only-virus-rrd'};
+! 			RRDs::update $rrd_virus, "$sm:0:0:0" unless $opt{'only-mail-rrd'};
+  		}
+  	}
+  	$this_minute = $m;
+***************
+*** 887,892 ****
+--- 893,899 ----
+  	$sum{rejected}=0;
+  	$sum{virus}=0;
+  	$sum{spam}=0;
++     $sum{spf}=0;
+  	return 1;
+  }
+  
