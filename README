@@ -1,0 +1,6 @@
+This is a small patch for mailgraph, an RRD graphing tool for email traffic written by David Schweikert
+It can be found here: http://mailgraph.schweikert.ch/
+
+The patch was tested with version 1.14 of mailgraph and version 1.07 of postfix-policyd-spf.pl from www.openspf.org, but should work with newer postfix-policyd-spf.pl as well.
+
+
